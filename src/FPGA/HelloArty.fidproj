@@ -1,0 +1,24 @@
+[package]
+name = "HelloArty"
+version = "0.1.0"
+description = "Clef FPGA blinky for Digilent Arty A7-100T."
+authors = ["SpeakEZ Technologies, Inc."]
+
+[compilation]
+target = "fpga"
+
+[platform]
+template = "arty-a7"
+variant  = "ArtyA7_100T"
+
+[dependencies]
+platform = { path = "../../../Fidelity.Platform/FPGA/Xilinx/Artix7/ArtyA7_100T" }
+
+[build]
+sources = [
+    "../Shared/Contract.clef",
+    "Behavior.clef",
+    "Program.clef"
+]
+output      = "helloarty"
+output_kind = "fpga"

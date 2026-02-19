@@ -1,0 +1,83 @@
+module HelloArty.Behavior
+
+open Fidelity.Platform.FPGA.Xilinx.Artix7.ArtyA7_100T.Prelude
+open HelloArty.Contract
+
+let defaultPeriodMs = 500
+let private minPeriodMs = 100
+let private maxPeriodMs = 2000
+let private cadenceStepMs = 100
+
+/// Upper bound for the free-running tick counter in BlinkState.
+/// The counter wraps here to prevent int overflow at 100 MHz.
+let maxCounterTicks = maxPeriodMs * ticksPerMs * 2
+
+/// Decode 3-bit switch vector to Color (SW2=MSB, SW0=LSB).
+let colorFromSwitches sw0 sw1 sw2 =
+    match sw0, sw1, sw2 with
+    | false, false, false -> Off
+    | true,  false, false -> Red
+    | false, true,  false -> Green
+    | false, false, true  -> Blue
+    | true,  true,  false -> Yellow
+    | false, true,  true  -> Cyan
+    | true,  false, true  -> Magenta
+    | true,  true,  true  -> White
+
+/// SW3 selects blink mode.
+let modeFromSwitch sw3 =
+    if sw3 then Blink else Solid
+
+let private clampPeriod value =
+    if value < minPeriodMs then minPeriodMs
+    elif value > maxPeriodMs then maxPeriodMs
+    else value
+
+/// Apply cadence button inputs to current blink period.
+/// btn0 = faster (-100ms, floor 100ms)
+/// btn1 = slower (+100ms, cap 2000ms)
+/// btn3 = reset to default (500ms)
+/// Simultaneous btn0+btn1 = no change.
+let applyCadenceButtons periodMs btn0 btn1 btn3 =
+    let next =
+        if btn3 then defaultPeriodMs
+        elif btn0 && not btn1 then periodMs - cadenceStepMs
+        elif btn1 && not btn0 then periodMs + cadenceStepMs
+        else periodMs
+    clampPeriod next
+
+/// Complete observable LED state produced by one evaluation of this program's logic.
+type ArtyState = {
+    Color: Color
+    Mode: Mode
+    PeriodMs: int
+}
+
+/// Hardware register state for the blink design.
+/// Fields become seq.compreg flip-flops synthesised by the compiler.
+type BlinkState = {
+    Counter: int  // Free-running tick counter, wraps at maxCounterTicks
+    PeriodMs: int // Current blink period in milliseconds
+}
+
+/// Compute next LED state from all switch and button inputs.
+/// btn2 is reserved for pattern selection (future increment).
+let nextState sw0 sw1 sw2 sw3 btn0 btn1 btn2 btn3 currentPeriodMs =
+    let _ = btn2
+    { Color = colorFromSwitches sw0 sw1 sw2
+      Mode = modeFromSwitch sw3
+      PeriodMs = applyCadenceButtons currentPeriodMs btn0 btn1 btn3 }
+
+/// Mealy transition: current state × sampled inputs → next state × driven outputs.
+let step (state: BlinkState) (inputs: Inputs) : BlinkState * Outputs<ArtyReport> =
+    let s = nextState inputs.Sw0 inputs.Sw1 inputs.Sw2 inputs.Sw3
+                      inputs.Btn0 inputs.Btn1 inputs.Btn2 inputs.Btn3
+                      state.PeriodMs
+    let nextCounter = (state.Counter + 1) % maxCounterTicks
+    let bright = isLedOn s.Mode nextCounter s.PeriodMs
+    let rgb = colorToRgbBits s.Color bright
+
+    { Counter = nextCounter; PeriodMs = s.PeriodMs },
+    { Leds = { Led0 = bright; Led1 = bright; Led2 = bright; Led3 = bright
+               Rgb0 = rgb; Rgb1 = rgb; Rgb2 = rgb; Rgb3 = rgb }
+      UartReport = ValueNone } // Reporting wired when Monitor program is added

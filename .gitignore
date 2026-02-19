@@ -1,0 +1,31 @@
+# Local agent/tool state (project-local, not source of truth)
+.serena/
+**/.serena/
+.claude/
+**/.claude/
+.gemini/
+**/.gemini/
+.codex/
+**/.codex/
+
+# .NET build artifacts
+/bin/
+/obj/
+bin/
+obj/
+**/bin/
+**/obj/
+
+# Clef/Fidelity ephemeral assets
+/targets/
+/deps/
+targets/
+deps/
+**/targets/
+**/deps/
+
+# Common local IDE/user artifacts
+.vs/
+.vscode/
+*.user
+*.suo
