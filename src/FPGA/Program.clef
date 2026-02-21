@@ -6,7 +6,7 @@ open HelloArty.Behavior
 
 [<HardwareModule>]
 let helloArtyTop : Design<BlinkState, ArtyReport> = {
-    InitialState = { Counter = 0 }
+    InitialState = { Counter = 0; PeriodMs = defaultPeriodMs }
     Step = step
     Clock = Endpoints.clock
 }
