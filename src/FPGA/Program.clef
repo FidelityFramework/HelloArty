@@ -6,8 +6,8 @@ open HelloArty.Behavior
 
 [<HardwareModule>]
 let helloArtyTop : Design<BreathState, ArtyReport> = {
-    InitialState = { Counter = 0; StepTick = 0; Brightness = pwmFloor
-                     Dimming = false; PeriodMs = defaultPeriodMs }
+    InitialState = { Counter = 0; StepTick = 0; Phase = 0
+                     PeriodMs = defaultPeriodMs }
     Step = step
     Clock = Endpoints.clock
 }
