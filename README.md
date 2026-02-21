@@ -5,7 +5,7 @@ breathe in a sinusoidal chasing wave, with RGB LEDs following in a user-selected
 Switches control color and master power; buttons latch the breathing cadence.
 
 The design compiles from idiomatic Clef source through the Composer FPGA pipeline
-to synthesised hardware — no HDL, no hardware-specific syntax. The compiler
+to synthesised hardware without HDL or hardware-specific syntax. The compiler
 [infers bit widths and machine classification](https://clef-lang.com/blog/fpga-and-hardware-inference/)
 directly from the source, so `step` reads like an ML function while producing
 area-efficient CIRCT output.
@@ -16,13 +16,13 @@ HelloArty is structured as two programs that share a BAREWire contract:
 
 ```
 src/
-├── HelloArty.fidsln            # (future) Solution — ties FPGA + Monitor + Shared
+├── HelloArty.fidsln            # (future) Solution tying FPGA + Monitor + Shared
 ├── Shared/
-│   └── Contract.clef           # [<BAREWireSchema>] ArtyReport — owned by neither program
+│   └── Contract.clef           # [<BAREWireSchema>] ArtyReport, owned by neither program
 ├── FPGA/
 │   ├── HelloArty.fidproj       # FPGA build manifest  (output_kind = "fpga")
 │   ├── Behavior.clef           # Wave chase logic (smoothstep brightness, phase offsets)
-│   └── Program.clef            # [<HardwareModule>] — the Mealy machine design
+│   └── Program.clef            # [<HardwareModule>] Mealy machine design
 └── Monitor/                    # (future) CPU console monitor
     ├── ArtyMonitor.fidproj     #   output_kind = "console"
     └── Program.clef            #   reads /dev/ttyUSB1, decodes ArtyReport, renders
@@ -41,7 +41,7 @@ The hardware design is a **Mealy machine**: `State x Inputs -> State x Outputs`.
   [inferred from value ranges](https://clef-lang.com/blog/fpga-and-hardware-inference/)
   rather than fixed at CPU register size.
 - The `step` function body becomes `comb` combinational logic evaluated each clock edge.
-- `[<HardwareModule>]` signals declaration semantics — this binding IS the design.
+- `[<HardwareModule>]` signals declaration semantics: the binding itself is the design.
 
 ### Wave Chase
 
@@ -49,11 +49,11 @@ A single master phase counter (`0..511`) advances at a rate determined by the la
 period. Each LED reads the phase at a quarter-cycle offset, maps it through a triangle
 ramp, then applies a Hermite smoothstep (`3x^2 - 2x^3`) for sinusoidal brightness.
 PWM comparison against a free-running sub-cycle counter produces the final on/off signal.
-LEDs never go fully dark — `pwmFloor` sets a minimum brightness.
+LEDs never go fully dark because `pwmFloor` sets a minimum brightness.
 
 ### Width Inference
 
-The source code declares `Counter: int`, `Phase: int`, etc. — ordinary ML integers. The
+The source code declares `Counter: int`, `Phase: int`, and so on, all ordinary ML integers. The
 compiler's [interval analysis](https://clef-lang.com/blog/fpga-and-hardware-inference/)
 traces value ranges through the dataflow graph and derives minimum bit widths
 automatically. For this design:
@@ -65,7 +65,7 @@ automatically. For this design:
 | `Phase`     | 10 bits       | Cycles `0..511` (`4 * pwmCeiling`) |
 | `PeriodMs`  | 13 bits       | Latched period, max `defaultPeriodMs` (4000) |
 
-The convergence loop handles feedback cycles — `StepTick` feeds back through state, gets
+The convergence loop handles feedback cycles. `StepTick` feeds back through state, gets
 compared to `threshold`, and the comparison seeds the counter's range so it can actually
 reach the threshold. Constants like `rampRange` (124) are recognized as point intervals
 and protected from widening, preventing the kind of explosive divergence that naive
@@ -78,9 +78,9 @@ The result: each `seq.compreg` flip-flop uses exactly the bits it needs. No manu
 
 Board-level facts live in `Fidelity.Platform/FPGA/Xilinx/Artix7/ArtyA7_100T/`:
 
-- `ArtyA7_100T.Bindings.clef` — physical pin descriptors and XDC constraint data
-- `ArtyA7_100T.Prelude.clef`  — `Color`, `Mode`, `colorToRgbBits`, `isLedOn`,
-                                  `ArtyReport`, `Inputs`, `Outputs<'R>`, `Design<'S,'R>`
+- `ArtyA7_100T.Bindings.clef`: physical pin descriptors and XDC constraint data
+- `ArtyA7_100T.Prelude.clef`: `Color`, `Mode`, `colorToRgbBits`, `isLedOn`,
+  `ArtyReport`, `Inputs`, `Outputs<'R>`, `Design<'S,'R>`
 
 Application code opens the Prelude and writes idiomatic ML-style functions.
 No HDL boilerplate; no hardware-specific syntax in user files.
@@ -100,13 +100,13 @@ No HDL boilerplate; no hardware-specific syntax in user files.
 | 1 1 0       | Cyan    |
 | 1 1 1       | White   |
 
-- `SW3` — Master on/off (off = all LEDs dark)
+- `SW3`: master on/off (off = all LEDs dark)
 
 **Buttons (latching, priority-encoded):**
-- `BTN0` — Default period (4 s, slowest)
-- `BTN1` — Half period (2 s)
-- `BTN2` — Quarter period (1 s)
-- `BTN3` — Eighth period (500 ms, fastest)
+- `BTN0`: default period (4 s, slowest)
+- `BTN1`: half period (2 s)
+- `BTN2`: quarter period (1 s)
+- `BTN3`: eighth period (500 ms, fastest)
 
 Rate persists after button release.
 
