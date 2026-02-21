@@ -7,10 +7,10 @@ open HelloArty.Contract
 let defaultPeriodMs = 4000
 
 /// PWM resolution: 128 levels.
-let private pwmCeiling = 128
+let private pwmCeiling = 256
 
-/// Minimum brightness: LEDs never go fully dark.
-let pwmFloor = 4
+/// Minimum brightness: LEDs brightness is not linear
+let pwmFloor = 0
 
 /// Ramp range: brightness steps from floor to ceiling.
 let private rampRange = pwmCeiling - pwmFloor
