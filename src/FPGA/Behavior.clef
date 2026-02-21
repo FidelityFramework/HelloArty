@@ -96,8 +96,14 @@ let step (state: BreathState) (inputs: Inputs) : BreathState * Outputs<ArtyRepor
     let maxTicks = defaultPeriodMs * ticksPerMs * 2
     let nextCounter = (state.Counter + 1) % maxTicks
 
-    // PWM: compare fast sub-counter against current brightness
-    let pwmOn = (nextCounter % pwmCeiling) < nextBrightness
+    // Smoothstep: 3x² − 2x³ reshapes linear triangle into S-curve
+    // (eases at both dim and bright extremes for sinusoidal feel)
+    let phase = nextBrightness - pwmFloor
+    let rampRange = pwmCeiling - pwmFloor
+    let smoothed = pwmFloor + (3 * phase * phase - 2 * phase * phase * phase / rampRange) / rampRange
+
+    // PWM: compare fast sub-counter against smoothed brightness
+    let pwmOn = (nextCounter % pwmCeiling) < smoothed
 
     let rgb = colorToRgbBits color pwmOn
 
