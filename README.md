@@ -1,8 +1,14 @@
 # HelloArty
 
-HelloArty is a Clef FPGA program targeting the Digilent Arty A7-100T. It demonstrates
-a deterministic "hello blinky" design: switches select color and mode, buttons adjust
-blink cadence, and the board reports its state back to the host over the USB-UART.
+HelloArty is a Clef FPGA program targeting the Digilent Arty A7-100T. Four green LEDs
+breathe in a sinusoidal chasing wave, with RGB LEDs following in a user-selected color.
+Switches control color and master power; buttons latch the breathing cadence.
+
+The design compiles from idiomatic Clef source through the Composer FPGA pipeline
+to synthesised hardware — no HDL, no hardware-specific syntax. The compiler
+[infers bit widths and machine classification](https://clef-lang.com/blog/fpga-and-hardware-inference/)
+directly from the source, so `step` reads like an ML function while producing
+area-efficient CIRCT output.
 
 ## Architecture
 
@@ -15,8 +21,8 @@ src/
 │   └── Contract.clef           # [<BAREWireSchema>] ArtyReport — owned by neither program
 ├── FPGA/
 │   ├── HelloArty.fidproj       # FPGA build manifest  (output_kind = "fpga")
-│   ├── Behavior.clef           # Application logic (switch/button decoding, cadence)
-│   └── Program.clef            # [<HardwareModule>] — the FPGA design
+│   ├── Behavior.clef           # Wave chase logic (smoothstep brightness, phase offsets)
+│   └── Program.clef            # [<HardwareModule>] — the Mealy machine design
 └── Monitor/                    # (future) CPU console monitor
     ├── ArtyMonitor.fidproj     #   output_kind = "console"
     └── Program.clef            #   reads /dev/ttyUSB1, decodes ArtyReport, renders
@@ -28,11 +34,45 @@ neither owns it. `Color` and `Mode` come from the Arty A7 Prelude (board facts);
 
 ## FPGA Design Model
 
-The hardware design is a **Mealy machine**: `State × Inputs → State × Outputs`.
+The hardware design is a **Mealy machine**: `State x Inputs -> State x Outputs`.
 
-- `BlinkState` fields become `seq.compreg` flip-flops (synthesised by the compiler).
+- `BreathState` fields (`Counter`, `StepTick`, `Phase`, `PeriodMs`) become
+  `seq.compreg` flip-flops, with bit widths
+  [inferred from value ranges](https://clef-lang.com/blog/fpga-and-hardware-inference/)
+  rather than fixed at CPU register size.
 - The `step` function body becomes `comb` combinational logic evaluated each clock edge.
 - `[<HardwareModule>]` signals declaration semantics — this binding IS the design.
+
+### Wave Chase
+
+A single master phase counter (`0..511`) advances at a rate determined by the latched
+period. Each LED reads the phase at a quarter-cycle offset, maps it through a triangle
+ramp, then applies a Hermite smoothstep (`3x^2 - 2x^3`) for sinusoidal brightness.
+PWM comparison against a free-running sub-cycle counter produces the final on/off signal.
+LEDs never go fully dark — `pwmFloor` sets a minimum brightness.
+
+### Width Inference
+
+The source code declares `Counter: int`, `Phase: int`, etc. — ordinary ML integers. The
+compiler's [interval analysis](https://clef-lang.com/blog/fpga-and-hardware-inference/)
+traces value ranges through the dataflow graph and derives minimum bit widths
+automatically. For this design:
+
+| State Field | Inferred Width | Why |
+|-------------|---------------|-----|
+| `Counter`   | 31 bits       | Free-running mod `defaultPeriodMs * ticksPerMs * 2` (max ~10^9) |
+| `StepTick`  | 21 bits       | Counts to `ticksPerStep` threshold (~781,250 at default cadence) |
+| `Phase`     | 10 bits       | Cycles `0..511` (`4 * pwmCeiling`) |
+| `PeriodMs`  | 13 bits       | Latched period, max `defaultPeriodMs` (4000) |
+
+The convergence loop handles feedback cycles — `StepTick` feeds back through state, gets
+compared to `threshold`, and the comparison seeds the counter's range so it can actually
+reach the threshold. Constants like `rampRange` (124) are recognized as point intervals
+and protected from widening, preventing the kind of explosive divergence that naive
+interval propagation would produce.
+
+The result: each `seq.compreg` flip-flop uses exactly the bits it needs. No manual
+`[<Width(21)>]` annotations; no 32-bit registers wasting fabric.
 
 ## Platform Library
 
@@ -48,6 +88,7 @@ No HDL boilerplate; no hardware-specific syntax in user files.
 ## Interactive Contract
 
 **Switches:**
+
 | SW2 SW1 SW0 | Color   |
 |-------------|---------|
 | 0 0 0       | Off     |
@@ -59,26 +100,36 @@ No HDL boilerplate; no hardware-specific syntax in user files.
 | 1 1 0       | Cyan    |
 | 1 1 1       | White   |
 
-- `SW3 = 0` → Solid; `SW3 = 1` → Blink
+- `SW3` — Master on/off (off = all LEDs dark)
 
-**Buttons:**
-- `BTN0` — faster (−100 ms, floor 100 ms)
-- `BTN1` — slower (+100 ms, cap 2000 ms)
-- `BTN2` — reserved (pattern select, future)
-- `BTN3` — reset cadence to default (500 ms)
+**Buttons (latching, priority-encoded):**
+- `BTN0` — Default period (4 s, slowest)
+- `BTN1` — Half period (2 s)
+- `BTN2` — Quarter period (1 s)
+- `BTN3` — Eighth period (500 ms, fastest)
 
-## Build Intent
+Rate persists after button release.
+
+## Build
 
 ```
 Clef source
-  → CCS front-end
-  → Composer (FPGA lowering path)
-  → CIRCT hw/comb/seq MLIR
-  → Verilog + XDC
-  → Vivado synthesis and implementation
-  → Arty A7-100T bitstream
+  -> CCS front-end
+  -> Composer (FPGA lowering path)
+  -> CIRCT hw/comb/seq MLIR
+  -> circt-opt -> SystemVerilog + XDC
+  -> Vivado synthesis and implementation
+  -> Arty A7-100T bitstream + SPI flash
 ```
 
-The FPGA lowering path (`[<HardwareModule>]` → CIRCT) is the next compiler milestone.
-The source is correct Clef now; compilation will fail with a clear
-"FPGA lowering path not implemented" error — which is the right signal.
+```bash
+# Compile
+cd src/FPGA
+/path/to/Composer compile HelloArty.fidproj -k
+
+# Synthesize + flash
+cd targets
+./build.sh --synth --flash
+```
+
+Flash programming uses openFPGALoader (Vivado 2025.2 indirect flash is broken).
