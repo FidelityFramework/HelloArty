@@ -5,8 +5,9 @@ open HelloArty.Contract
 open HelloArty.Behavior
 
 [<HardwareModule>]
-let helloArtyTop : Design<BlinkState, ArtyReport> = {
-    InitialState = { Counter = 0; PeriodMs = defaultPeriodMs }
+let helloArtyTop : Design<BreathState, ArtyReport> = {
+    InitialState = { Counter = 0; StepTick = 0; Brightness = pwmFloor
+                     Dimming = false; PeriodMs = defaultPeriodMs }
     Step = step
     Clock = Endpoints.clock
 }
