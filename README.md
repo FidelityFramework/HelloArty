@@ -132,3 +132,33 @@ cd targets
 ```
 
 Flash programming uses openFPGALoader (Vivado 2025.2 indirect flash is broken).
+
+## Timing Analysis
+
+The compiler performs two-layer timing analysis for FPGA targets:
+
+**Layer 1 (CCS, structural heuristic):** A PSG catamorphism counts weighted
+combinational depth between register boundaries. The threshold is calibrated
+from the platform binding's fabric characteristics and the project's clock
+frequency:
+
+```
+threshold = floor(clock_period_ns / ns_per_weight_unit)
+```
+
+The Arty A7-100T binding declares `ns_per_weight_unit = 1.6` (calibrated from
+Vivado post-route WNS). HelloArty declares `clock_mhz = 25` in its fidproj,
+giving `floor(40 / 1.6) = 25` — well above the smoothstep's depth of ~12.
+
+**Layer 2 (Vivado, ground truth):** Post-route WNS from `report_timing_summary`
+provides authoritative timing signoff. Layer 1 catches problems early; Layer 2
+confirms.
+
+When `--warnaserror` is set, depth violations are elevated to errors and block
+compilation:
+
+![warnaserror diagnostic output](docs/example_artifacts/screenshot-2026-02-22_22-59-52.png)
+
+See [docs/AutomaticPipelineInference.md](docs/AutomaticPipelineInference.md)
+for the full architecture and calibration strategy. Reference build artifacts
+are in [docs/example_artifacts/](docs/example_artifacts/).

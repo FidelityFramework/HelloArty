@@ -25,9 +25,6 @@ TARGETS_DIR="$SCRIPT_DIR"
 # Composer compiler
 COMPOSER="${COMPOSER:-/home/hhh/repos/Composer/src/bin/Debug/net10.0/Composer}"
 
-# Clef compiler (for .clef sources)
-CLEF="${CLEF:-/home/hhh/repos/clef/src/Compiler/bin/Debug/net10.0/clef}"
-
 # Board
 BOARD="arty_a7_100t"
 TOP_MODULE="Program_helloArtyTop"
@@ -63,7 +60,7 @@ if $DO_COMPILE; then
     echo "Stage 1: Compile (.clef → SystemVerilog)"
     echo "================================================================"
     cd "$PROJECT_DIR"
-    "$CLEF" compile HelloArty.fidproj -k
+    "$COMPOSER" compile HelloArty.fidproj -k --warnaserror
     echo "  Output: $TARGETS_DIR/intermediates/"
     echo ""
 fi
