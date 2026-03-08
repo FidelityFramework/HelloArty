@@ -13,7 +13,7 @@ template = "arty-a7"
 variant  = "ArtyA7_100T"
 
 [dependencies]
-platform = { path = "../../../Fidelity.Platform/FPGA/Xilinx/Artix7/ArtyA7_100T" }
+platform = { path = "../../../Fidelity.Platform/FPGA/Xilinx/Artix7/ArtyA7_100T/Fidelity.Platform.fidproj" }
 
 [build]
 sources = [

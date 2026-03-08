@@ -4,7 +4,7 @@ HelloArty is a Clef FPGA program targeting the Digilent Arty A7-100T. Four green
 Switches control color and master power; buttons latch the breathing cadence.
 
 The design compiles from idiomatic Clef source through the Composer FPGA pipeline
-to synthesized hardware without HDL or hardware-specific syntax. The compiler
+to synthesized hardware without hardware-specific syntax (until the BackEnd). The compiler
 [infers bit widths and machine classification](https://clef-lang.com/blog/fpga-and-hardware-inference/)
 directly from the source, so `step` reads like an ML function while producing
 area-efficient CIRCT output.
