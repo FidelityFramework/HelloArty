@@ -6,7 +6,7 @@ open HelloArty.Contract
 /// Default wave cycle: 4 seconds for a full LED0→LED3 chase.
 let defaultPeriodMs = 4000
 
-/// PWM resolution: 128 levels.
+/// PWM resolution: 256 levels.
 let private pwmCeiling = 256
 
 /// Minimum brightness: LEDs brightness is not linear
@@ -15,7 +15,7 @@ let pwmFloor = 0
 /// Ramp range: brightness steps from floor to ceiling.
 let private rampRange = pwmCeiling - pwmFloor
 
-/// Full wave cycle: 4 × pwmCeiling = 512 phase steps (power of 2 for free modulus).
+/// Full wave cycle: 4 × pwmCeiling = 1024 phase steps (power of 2 for free modulus).
 /// Each LED: ramp up (124 steps) + ramp down (124 steps) + dim hold (264 steps).
 let private cycleSteps = 4 * pwmCeiling
 
